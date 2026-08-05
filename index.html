@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#15224b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <title>まるまる惑星マージ</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --panel: rgba(17, 27, 60, .86);
+      --line: rgba(255,255,255,.16);
+      --text: #f8fbff;
+      --muted: #b9c8eb;
+      --accent: #ffd45a;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body {
+      font-family: system-ui, -apple-system, "Noto Sans JP", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 20% 15%, rgba(70,110,255,.35), transparent 28%),
+        radial-gradient(circle at 85% 75%, rgba(213,83,255,.25), transparent 28%),
+        linear-gradient(160deg, #091126, #17265a 65%, #32185f);
+      overscroll-behavior: none;
+      touch-action: none;
+    }
+    #app {
+      width: min(100vw, 760px);
+      height: 100dvh;
+      margin: 0 auto;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 8px;
+      padding: max(8px, env(safe-area-inset-top)) 10px max(8px, env(safe-area-inset-bottom));
+    }
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      align-items: center;
+      gap: 8px;
+    }
+    .titlebox h1 { margin: 0; font-size: clamp(18px, 4vw, 28px); line-height: 1.05; }
+    .titlebox p { margin: 3px 0 0; color: var(--muted); font-size: clamp(10px, 2.5vw, 13px); }
+    .badge {
+      min-width: 76px;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+      box-shadow: 0 7px 20px rgba(0,0,0,.2);
+      text-align: center;
+    }
+    .badge small { display: block; color: var(--muted); font-size: 10px; }
+    .badge strong { display: block; font-size: clamp(17px, 3.8vw, 24px); line-height: 1.1; }
+    #stageWrap {
+      position: relative;
+      min-height: 0;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      overflow: hidden;
+      background: rgba(2, 6, 22, .58);
+      box-shadow: inset 0 0 50px rgba(65,100,255,.11), 0 14px 35px rgba(0,0,0,.25);
+    }
+    canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+    #message {
+      position: absolute;
+      left: 50%; top: 42%;
+      transform: translate(-50%, -50%) scale(.96);
+      width: min(86%, 420px);
+      padding: 20px;
+      border: 1px solid rgba(255,255,255,.24);
+      border-radius: 20px;
+      background: rgba(7, 12, 34, .93);
+      box-shadow: 0 18px 50px rgba(0,0,0,.45);
+      text-align: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: .18s ease;
+    }
+    #message.show { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
+    #message h2 { margin: 0 0 8px; font-size: 27px; }
+    #message p { margin: 5px 0 14px; color: var(--muted); }
+    button {
+      border: 0;
+      border-radius: 16px;
+      color: #111833;
+      background: linear-gradient(#ffe886, #ffc83d);
+      font: inherit;
+      font-weight: 800;
+      box-shadow: 0 5px 0 #bc8518, 0 9px 20px rgba(0,0,0,.25);
+      cursor: pointer;
+      user-select: none;
+    }
+    button:active { transform: translateY(3px); box-shadow: 0 2px 0 #bc8518; }
+    #restart { padding: 12px 22px; }
+    footer {
+      display: grid;
+      grid-template-columns: 1fr 1.35fr 1fr;
+      gap: 9px;
+      align-items: stretch;
+    }
+    .control { min-height: 56px; font-size: 24px; }
+    #dropBtn { font-size: clamp(17px, 4.2vw, 22px); }
+    #help {
+      position: absolute;
+      right: 10px; bottom: 8px;
+      color: rgba(255,255,255,.55);
+      font-size: 11px;
+      pointer-events: none;
+    }
+    @media (orientation: landscape) and (max-height: 650px) {
+      #app { width: min(100vw, 980px); grid-template-columns: 180px 1fr 150px; grid-template-rows: 1fr; gap: 10px; }
+      header { grid-template-columns: 1fr 1fr; align-content: start; }
+      .titlebox { grid-column: 1 / -1; }
+      footer { grid-template-columns: 1fr; align-content: center; }
+      .control { min-height: 64px; }
+    }
+  </style>
+</head>
+<body>
+  <main id="app">
+    <header>
+      <div class="titlebox">
+        <h1>まるまる惑星マージ</h1>
+        <p>同じ惑星をぶつけて大きくしよう！</p>
+      </div>
+      <div class="badge"><small>スコア</small><strong id="score">0</strong></div>
+      <div class="badge"><small>ベスト</small><strong id="best">0</strong></div>
+    </header>
+
+    <section id="stageWrap" aria-label="ゲーム画面">
+      <canvas id="game"></canvas>
+      <div id="message">
+        <h2>ゲームオーバー</h2>
+        <p id="resultText">スコア 0</p>
+        <button id="restart">もう一度あそぶ</button>
+      </div>
+      <div id="help">指で位置を決めて離す／下のボタンでも操作</div>
+    </section>
+
+    <footer>
+      <button class="control" id="leftBtn" aria-label="左へ">◀</button>
+      <button class="control" id="dropBtn">ここに落とす</button>
+      <button class="control" id="rightBtn" aria-label="右へ">▶</button>
+    </footer>
+  </main>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const wrap = document.getElementById('stageWrap');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const messageEl = document.getElementById('message');
+  const resultText = document.getElementById('resultText');
+  const restartBtn = document.getElementById('restart');
+  const leftBtn = document.getElementById('leftBtn');
+  const rightBtn = document.getElementById('rightBtn');
+  const dropBtn = document.getElementById('dropBtn');
+
+  const LEVELS = [
+    { r: 16, color: '#7bdff2', glow: '#b5eff8', points: 1, name: 'しずく' },
+    { r: 22, color: '#73e2a7', glow: '#baf4d5', points: 3, name: 'わかば' },
+    { r: 29, color: '#ffe066', glow: '#fff1a9', points: 6, name: 'ひかり' },
+    { r: 38, color: '#ff9f68', glow: '#ffd0b6', points: 10, name: 'ほのお' },
+    { r: 49, color: '#ff6b8a', glow: '#ffb3c3', points: 18, name: 'ハート' },
+    { r: 63, color: '#b388ff', glow: '#d7c2ff', points: 32, name: 'ゆめ' },
+    { r: 80, color: '#6d8cff', glow: '#b4c2ff', points: 58, name: 'あお星' },
+    { r: 101, color: '#f5c451', glow: '#fff0a5', points: 100, name: 'たいよう' }
+  ];
+
+  let W = 400, H = 640, dpr = 1;
+  let balls = [];
+  let particles = [];
+  let nextId = 1;
+  let currentLevel = 0;
+  let nextLevel = 0;
+  let aimX = W / 2;
+  let canDrop = true;
+  let cooldown = 0;
+  let score = 0;
+  let best = loadBest();
+  let gameOver = false;
+  let dangerTime = 0;
+  let pointerActive = false;
+  let lastTime = performance.now();
+  let accumulator = 0;
+
+  const GRAVITY = 1050;
+  const RESTITUTION = 0.18;
+  const FRICTION = 0.986;
+  const FIXED_DT = 1 / 60;
+  const DANGER_Y = 92;
+  const DROP_Y = 44;
+
+  bestEl.textContent = String(best);
+
+  function loadBest() {
+    try { return Number(localStorage.getItem('marumaru_best') || 0); } catch (_) { return 0; }
+  }
+  function saveBest(value) {
+    try { localStorage.setItem('marumaru_best', String(value)); } catch (_) {}
+  }
+
+  function resize() {
+    const rect = wrap.getBoundingClientRect();
+    W = Math.max(280, rect.width);
+    H = Math.max(360, rect.height);
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    for (const b of balls) b.r = levelRadius(b.level);
+    aimX = clamp(aimX, levelRadius(currentLevel) + 4, W - levelRadius(currentLevel) - 4);
+  }
+
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function levelRadius(level) {
+    const scale = clamp(W / 400, .82, 1.2);
+    return LEVELS[level].r * scale;
+  }
+
+  function randomSpawnLevel() {
+    const roll = Math.random();
+    if (roll < .48) return 0;
+    if (roll < .80) return 1;
+    if (roll < .96) return 2;
+    return 3;
+  }
+
+  function resetGame() {
+    balls = [];
+    particles = [];
+    nextId = 1;
+    score = 0;
+    scoreEl.textContent = '0';
+    currentLevel = randomSpawnLevel();
+    nextLevel = randomSpawnLevel();
+    aimX = W / 2;
+    canDrop = true;
+    cooldown = 0;
+    gameOver = false;
+    dangerTime = 0;
+    messageEl.classList.remove('show');
+  }
+
+  function addBall(x, y, level, vx = 0, vy = 0) {
+    balls.push({
+      id: nextId++, x, y, vx, vy, level,
+      r: levelRadius(level), age: 0, merging: false,
+      squash: 0, angle: Math.random() * Math.PI * 2
+    });
+  }
+
+  function drop() {
+    if (!canDrop || gameOver) return;
+    const r = levelRadius(currentLevel);
+    aimX = clamp(aimX, r + 3, W - r - 3);
+    addBall(aimX, DROP_Y + r, currentLevel, 0, 10);
+    currentLevel = nextLevel;
+    nextLevel = randomSpawnLevel();
+    canDrop = false;
+    cooldown = .62;
+  }
+
+  function mergePair(a, b) {
+    if (a.merging || b.merging || a.level !== b.level) return false;
+    a.merging = b.merging = true;
+    const newLevel = a.level + 1;
+    const totalMass = a.r * a.r + b.r * b.r;
+    const x = (a.x * a.r * a.r + b.x * b.r * b.r) / totalMass;
+    const y = (a.y * a.r * a.r + b.y * b.r * b.r) / totalMass;
+    const vx = (a.vx + b.vx) * .42;
+    const vy = Math.min((a.vy + b.vy) * .30 - 70, 120);
+
+    balls = balls.filter(o => o !== a && o !== b);
+    score += LEVELS[a.level].points;
+    scoreEl.textContent = String(score);
+    if (score > best) {
+      best = score;
+      bestEl.textContent = String(best);
+      saveBest(best);
+    }
+
+    burst(x, y, LEVELS[a.level].color, 12 + a.level * 2);
+    if (newLevel < LEVELS.length) {
+      addBall(x, y, newLevel, vx, vy);
+      const newborn = balls[balls.length - 1];
+      newborn.squash = .32;
+      if (newLevel === LEVELS.length - 1) burst(x, y, '#fff4a3', 34);
+    } else {
+      score += 250;
+      scoreEl.textContent = String(score);
+      burst(x, y, '#ffffff', 45);
+    }
+    return true;
+  }
+
+  function resolveCollision(a, b) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const minDist = a.r + b.r;
+    const distSq = dx * dx + dy * dy;
+    if (distSq >= minDist * minDist || distSq === 0) return false;
+    const dist = Math.sqrt(distSq);
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const overlap = minDist - dist;
+
+    if (a.level === b.level && a.age > .13 && b.age > .13 && overlap > Math.min(5, minDist * .08)) {
+      return mergePair(a, b);
+    }
+
+    const ma = a.r * a.r;
+    const mb = b.r * b.r;
+    const invTotal = 1 / (ma + mb);
+    a.x -= nx * overlap * mb * invTotal;
+    a.y -= ny * overlap * mb * invTotal;
+    b.x += nx * overlap * ma * invTotal;
+    b.y += ny * overlap * ma * invTotal;
+
+    const rvx = b.vx - a.vx;
+    const rvy = b.vy - a.vy;
+    const velAlongNormal = rvx * nx + rvy * ny;
+    if (velAlongNormal < 0) {
+      const invMa = 1 / ma;
+      const invMb = 1 / mb;
+      const j = -(1 + RESTITUTION) * velAlongNormal / (invMa + invMb);
+      const ix = j * nx;
+      const iy = j * ny;
+      a.vx -= ix * invMa;
+      a.vy -= iy * invMa;
+      b.vx += ix * invMb;
+      b.vy += iy * invMb;
+    }
+    a.squash = Math.min(.12, Math.abs(velAlongNormal) / 1600);
+    b.squash = Math.min(.12, Math.abs(velAlongNormal) / 1600);
+    return false;
+  }
+
+  function step(dt) {
+    if (gameOver) {
+      updateParticles(dt);
+      return;
+    }
+
+    cooldown -= dt;
+    if (!canDrop && cooldown <= 0) canDrop = true;
+
+    for (const b of balls) {
+      b.age += dt;
+      b.vy += GRAVITY * dt;
+      b.vx *= Math.pow(FRICTION, dt * 60);
+      b.vy *= Math.pow(.999, dt * 60);
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.squash *= Math.pow(.13, dt);
+
+      if (b.x - b.r < 0) {
+        b.x = b.r;
+        b.vx = Math.abs(b.vx) * RESTITUTION;
+      } else if (b.x + b.r > W) {
+        b.x = W - b.r;
+        b.vx = -Math.abs(b.vx) * RESTITUTION;
+      }
+      if (b.y + b.r > H) {
+        const hit = Math.abs(b.vy);
+        b.y = H - b.r;
+        b.vy = -hit * RESTITUTION;
+        b.vx *= .94;
+        if (hit < 45) b.vy = 0;
+        b.squash = Math.min(.16, hit / 1100);
+      }
+    }
+
+    // 数回反復して、玉がめり込みにくくする
+    for (let pass = 0; pass < 3; pass++) {
+      let merged = false;
+      outer:
+      for (let i = 0; i < balls.length; i++) {
+        for (let j = i + 1; j < balls.length; j++) {
+          if (resolveCollision(balls[i], balls[j])) {
+            merged = true;
+            break outer;
+          }
+        }
+      }
+      if (merged) break;
+    }
+
+    const inDanger = balls.some(b => b.age > 1.15 && b.y - b.r < DANGER_Y && Math.abs(b.vy) < 85);
+    dangerTime = inDanger ? dangerTime + dt : Math.max(0, dangerTime - dt * 2.5);
+    if (dangerTime > 2.1) endGame();
+
+    updateParticles(dt);
+  }
+
+  function endGame() {
+    gameOver = true;
+    resultText.textContent = `スコア ${score}　／　ベスト ${best}`;
+    messageEl.classList.add('show');
+  }
+
+  function burst(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 45 + Math.random() * 190;
+      particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 35, life: .55 + Math.random() * .45, max: 1, size: 2 + Math.random() * 5, color });
+    }
+  }
+
+  function updateParticles(dt) {
+    for (const p of particles) {
+      p.life -= dt;
+      p.vy += 420 * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+    }
+    particles = particles.filter(p => p.life > 0);
+  }
+
+  function drawBall(b, alpha = 1) {
+    const data = LEVELS[b.level];
+    const squashX = 1 + b.squash;
+    const squashY = 1 - b.squash;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(b.x, b.y);
+    ctx.rotate(Math.sin(b.angle + b.age) * .03);
+    ctx.scale(squashX, squashY);
+
+    const g = ctx.createRadialGradient(-b.r * .34, -b.r * .40, b.r * .08, 0, 0, b.r);
+    g.addColorStop(0, data.glow);
+    g.addColorStop(.38, data.color);
+    g.addColorStop(1, shade(data.color, -.28));
+    ctx.fillStyle = g;
+    ctx.shadowColor = data.color;
+    ctx.shadowBlur = Math.max(6, b.r * .22);
+    ctx.beginPath();
+    ctx.arc(0, 0, b.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    ctx.strokeStyle = 'rgba(255,255,255,.45)';
+    ctx.lineWidth = Math.max(1.2, b.r * .045);
+    ctx.stroke();
+
+    // 顔
+    if (b.r > 12) {
+      const eyeY = -b.r * .08;
+      const eyeX = b.r * .28;
+      ctx.fillStyle = 'rgba(13,20,42,.78)';
+      ctx.beginPath(); ctx.arc(-eyeX, eyeY, Math.max(1.6, b.r * .055), 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc( eyeX, eyeY, Math.max(1.6, b.r * .055), 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(13,20,42,.7)';
+      ctx.lineWidth = Math.max(1.2, b.r * .035);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(0, b.r * .12, b.r * .20, .18, Math.PI - .18);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function shade(hex, amount) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = clamp((n >> 16) + Math.round(255 * amount), 0, 255);
+    const g = clamp(((n >> 8) & 255) + Math.round(255 * amount), 0, 255);
+    const b = clamp((n & 255) + Math.round(255 * amount), 0, 255);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  function drawBackground() {
+    ctx.clearRect(0, 0, W, H);
+
+    // 星
+    ctx.fillStyle = 'rgba(255,255,255,.34)';
+    for (let i = 0; i < 35; i++) {
+      const x = ((i * 83.17) % W);
+      const y = ((i * 47.31 + 23) % H);
+      const s = (i % 3 === 0) ? 1.5 : .8;
+      ctx.fillRect(x, y, s, s);
+    }
+
+    // 危険ライン
+    const warning = clamp(dangerTime / 2.1, 0, 1);
+    ctx.save();
+    ctx.setLineDash([8, 8]);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = `rgba(255, ${Math.round(185 - warning * 120)}, ${Math.round(130 - warning * 80)}, ${.35 + warning * .6})`;
+    ctx.beginPath(); ctx.moveTo(0, DANGER_Y); ctx.lineTo(W, DANGER_Y); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = `rgba(255,220,180,${.35 + warning * .6})`;
+    ctx.font = 'bold 11px system-ui';
+    ctx.fillText(warning > .2 ? 'あぶない！' : 'ここを越え続けると終了', 9, DANGER_Y - 8);
+  }
+
+  function drawPreview() {
+    if (gameOver) return;
+    const r = levelRadius(currentLevel);
+    aimX = clamp(aimX, r + 3, W - r - 3);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,.16)';
+    ctx.setLineDash([4, 7]);
+    ctx.beginPath(); ctx.moveTo(aimX, DROP_Y + r * 2); ctx.lineTo(aimX, H); ctx.stroke();
+    ctx.restore();
+    drawBall({ x: aimX, y: DROP_Y + r, r, level: currentLevel, squash: 0, angle: 0, age: 0 }, canDrop ? .92 : .40);
+
+    // 次の惑星
+    const nr = Math.min(18, levelRadius(nextLevel) * .48);
+    ctx.save();
+    ctx.fillStyle = 'rgba(4,8,24,.68)';
+    ctx.strokeStyle = 'rgba(255,255,255,.18)';
+    ctx.lineWidth = 1;
+    roundRect(ctx, W - 77, 10, 67, 53, 13);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.72)';
+    ctx.font = '10px system-ui';
+    ctx.fillText('つぎ', W - 68, 23);
+    drawBall({ x: W - 31, y: 39, r: nr, level: nextLevel, squash: 0, angle: 0, age: 0 }, 1);
+    ctx.restore();
+  }
+
+  function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+
+  function render() {
+    drawBackground();
+    for (const b of balls) drawBall(b);
+    for (const p of particles) {
+      ctx.globalAlpha = clamp(p.life / p.max, 0, 1);
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    drawPreview();
+  }
+
+  function frame(now) {
+    let dt = Math.min(.04, (now - lastTime) / 1000);
+    lastTime = now;
+    accumulator += dt;
+    while (accumulator >= FIXED_DT) {
+      step(FIXED_DT);
+      accumulator -= FIXED_DT;
+    }
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  function pointX(ev) {
+    const rect = canvas.getBoundingClientRect();
+    return (ev.clientX - rect.left) * (W / rect.width);
+  }
+
+  canvas.addEventListener('pointerdown', ev => {
+    if (gameOver) return;
+    pointerActive = true;
+    canvas.setPointerCapture?.(ev.pointerId);
+    const r = levelRadius(currentLevel);
+    aimX = clamp(pointX(ev), r + 3, W - r - 3);
+  });
+  canvas.addEventListener('pointermove', ev => {
+    if (!pointerActive || gameOver) return;
+    const r = levelRadius(currentLevel);
+    aimX = clamp(pointX(ev), r + 3, W - r - 3);
+  });
+  canvas.addEventListener('pointerup', ev => {
+    if (!pointerActive) return;
+    pointerActive = false;
+    drop();
+  });
+  canvas.addEventListener('pointercancel', () => { pointerActive = false; });
+
+  function moveAim(dir) {
+    if (gameOver) return;
+    const r = levelRadius(currentLevel);
+    aimX = clamp(aimX + dir * Math.max(18, W * .055), r + 3, W - r - 3);
+  }
+  leftBtn.addEventListener('click', () => moveAim(-1));
+  rightBtn.addEventListener('click', () => moveAim(1));
+  dropBtn.addEventListener('click', drop);
+  restartBtn.addEventListener('click', resetGame);
+
+  window.addEventListener('keydown', ev => {
+    if (ev.key === 'ArrowLeft') moveAim(-1);
+    if (ev.key === 'ArrowRight') moveAim(1);
+    if (ev.key === ' ' || ev.key === 'ArrowDown' || ev.key === 'Enter') { ev.preventDefault(); drop(); }
+    if (ev.key.toLowerCase() === 'r') resetGame();
+  });
+  window.addEventListener('resize', resize);
+  if ('ResizeObserver' in window) new ResizeObserver(resize).observe(wrap);
+
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  }
+
+  resize();
+  resetGame();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
