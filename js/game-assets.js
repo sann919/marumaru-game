@@ -1,0 +1,1 @@
+const ASSETS = {"jungle":"assets/jungle.png","gorilla":"assets/gorilla.png","gorillaHappy":"assets/gorillaHappy.png","atlasA":"assets/atlasA.png","atlasB":"assets/atlasB.png","octopus":"assets/octopus.png","mammoth":"assets/mammoth.png","oceanBG":"assets/oceanBG.png","snowBG":"assets/snowBG.png","octopusHappy":"assets/octopusHappy.png","mammothHappy":"assets/mammothHappy.png"};
