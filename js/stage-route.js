@@ -4,11 +4,11 @@ function buildJourney(areas,words,bosses){
   for(const area of areas.filter(a=>a.enabled)){
     const played=[];
     area.normalStageIds.forEach((id,i)=>{
-      const word=words.find(w=>w.id===id);if(!word)throw new Error('ことば設定がありません: '+id);
+      const word=words.find(w=>w.id===id);if(!word){route.push({id,type:'invalid',areaId:area.id});return;}
       route.push({...word,type:'normal',areaId:area.id,background:area.background||word.background});played.push(id);
       if((i+1)%3===0){
         const bossId=area.bossIds[Math.floor(i/3)];const boss=bosses.find(b=>b.id===bossId);
-        if(!boss||boss.areaId!==area.id)throw new Error('エリアに対応するボス設定が必要です: '+area.id);
+        if(!boss||boss.areaId!==area.id){route.push({id:bossId,type:'invalid',areaId:area.id});return;}
         route.push({id:area.id+'-boss-'+Math.floor(i/3),type:'boss',areaId:area.id,bossId,challengeIds:played.slice(-Math.min(boss.challengeCount||3,played.length))});
       }
     });
